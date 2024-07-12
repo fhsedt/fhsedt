@@ -1,0 +1,100 @@
+ 
+/**
+ * 摄影作品
+ * 后端接口
+ * @author 
+ * @email 
+ * @date 2023-03-18 10:41:03
+ */
+@RestController
+@RequestMapping("/sheyingzuopin")
+public class SheyingzuopinController {
+    @Autowired
+    private SheyingzuopinService sheyingzuopinService;
+ 
+    /**
+     * 后端列表
+     */
+    @RequestMapping("/page")
+    public R page(@RequestParam Map<String, Object> params,SheyingzuopinEntity sheyingzuopin,
+		HttpServletRequest request){
+		String tableName = request.getSession().getAttribute("tableName").toString();
+		if(tableName.equals("yonghu")) {
+			sheyingzuopin.setYonghuming((String)request.getSession().getAttribute("username"));
+		}
+        EntityWrapper<SheyingzuopinEntity> ew = new EntityWrapper<SheyingzuopinEntity>();
+		PageUtils page = sheyingzuopinService.queryPage(params, MPUtil.sort(MPUtil.between(MPUtil.likeOrEq(ew, sheyingzuopin), params), params));
+ 
+        return R.ok().put("data", page);
+    }
+ 
+	 /**
+     * 查询
+     */
+    @RequestMapping("/query")
+    public R query(SheyingzuopinEntity sheyingzuopin){
+        EntityWrapper< SheyingzuopinEntity> ew = new EntityWrapper< SheyingzuopinEntity>();
+ 		ew.allEq(MPUtil.allEQMapPre( sheyingzuopin, "sheyingzuopin")); 
+		SheyingzuopinView sheyingzuopinView =  sheyingzuopinService.selectView(ew);
+		return R.ok("查询摄影作品成功").put("data", sheyingzuopinView);
+    }
+ 
+    /**
+     * 前端详情
+     */
+	@IgnoreAuth
+    @RequestMapping("/detail/{id}")
+    public R detail(@PathVariable("id") Long id){
+        SheyingzuopinEntity sheyingzuopin = sheyingzuopinService.selectById(id);
+		sheyingzuopin.setClicknum(sheyingzuopin.getClicknum()+1);
+		sheyingzuopin.setClicktime(new Date());
+		sheyingzuopinService.updateById(sheyingzuopin);
+        return R.ok().put("data", sheyingzuopin);
+    }
+ 
+    /**
+     * 赞或踩
+     */
+    @RequestMapping("/thumbsup/{id}")
+    public R vote(@PathVariable("id") String id,String type){
+        SheyingzuopinEntity sheyingzuopin = sheyingzuopinService.selectById(id);
+        if(type.equals("1")) {
+        	sheyingzuopin.setThumbsupnum(sheyingzuopin.getThumbsupnum()+1);
+        } else {
+        	sheyingzuopin.setCrazilynum(sheyingzuopin.getCrazilynum()+1);
+        }
+        sheyingzuopinService.updateById(sheyingzuopin);
+        return R.ok("投票成功");
+    }
+ 
+    /**
+     * 后端保存
+     */
+    @RequestMapping("/save")
+    public R save(@RequestBody SheyingzuopinEntity sheyingzuopin, HttpServletRequest request){
+    	sheyingzuopin.setId(new Date().getTime()+new Double(Math.floor(Math.random()*1000)).longValue());
+    	//ValidatorUtils.validateEntity(sheyingzuopin);
+        sheyingzuopinService.insert(sheyingzuopin);
+        return R.ok();
+    }
+ 
+    /**
+     * 修改
+     */
+    @RequestMapping("/update")
+    public R update(@RequestBody SheyingzuopinEntity sheyingzuopin, HttpServletRequest request){
+        //ValidatorUtils.validateEntity(sheyingzuopin);
+        sheyingzuopinService.updateById(sheyingzuopin);//全部更新
+        return R.ok();
+    }
+ 
+    /**
+     * 删除
+     */
+    @RequestMapping("/delete")
+    public R delete(@RequestBody Long[] ids){
+        sheyingzuopinService.deleteBatchIds(Arrays.asList(ids));
+        return R.ok();
+    }
+   
+}

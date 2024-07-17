@@ -1,0 +1,57 @@
+from PyQt5.Qt import *
+import sys
+
+
+#设置鼠标跟踪，需要重写mouseMoveEvent方法，需要继承
+
+class MyWindow(QWidget):
+    #QMouseEvent
+    #将鼠标位置设为类变量
+    def mouseMoveEvent(self, me):
+        print("鼠标移动了")
+        #在方法里面通过查找子类，获取到标签，然后再让标签移动
+        lable = self.findChild(QLabel)
+        lable.move(me.x(),me.y())
+
+
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+
+    window = MyWindow()
+
+    window.setWindowTitle("鼠标移动案例")
+    window.move(500,200)
+    window.resize(500,500)
+
+    #设置鼠标跟踪
+    window.setMouseTracking(True)
+
+    #自定义鼠标形状
+    # 创建QPixmap对象，并设置显示的图片
+    pixmap = QPixmap("xxx.png")
+
+    # 设置对象宽和高按比例缩小，返回一个新对象。原对象并没有被缩放
+    #pixmap.scaled(targetWidth, targetHeight, Qt.KeepAspectRatio)
+    #targetWidth 和 targetHeight 是目标缩小后的宽度和高度。Qt.KeepAspectRatio 参数表示保持宽高比。
+    new_pixmap = pixmap.scaled(50, 50,Qt.KeepAspectRatio)
+
+    # 创建QCursor对象(鼠标对象)，用作setCursor参数
+    # 设置该对象的作用点为图片的左上角(0,0)，默认是图片中心点
+    # 默认QCursor(pixmap: QPixmap, hotX: int = -1, hotY: int = -1) 表示作用点在图片中心点
+    cursor = QCursor(new_pixmap, 0, 0)
+
+    # 设置window控件的鼠标样式为自定义的QCursor对象：cursor
+    window.setCursor(cursor)
+
+
+    #创建标签
+    lable = QLabel(window)
+    lable.setText("景天科技苑，科技不间断")
+
+    lable.setStyleSheet("background-color:cyan;")
+
+    window.show()
+
+    sys.exit(app.exec())
+g

@@ -1,0 +1,16 @@
+    public static void main(String[] args) {
+        //创建书架
+        BookList bookList = new BookList();
+
+        //login
+        User user = login();
+
+        while(true){
+
+            //功能菜单选择
+            int choice = user.menu();
+
+            //功能实现
+            user.work(choice,bookList);
+        }
+    }

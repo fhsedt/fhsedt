@@ -1,0 +1,151 @@
+import warnings
+
+import numpy as np
+import resampy
+import torch
+import tqdm
+
+import crepe
+
+
+__all__ = ['CENTS_PER_BIN',
+           'MAX_FMAX',
+           'PITCH_BINS',
+           'SAMPLE_RATE',
+           'WINDOW_SIZE',
+           'UNVOICED',
+           'embed',
+           'embed_from_file',
+           'embed_from_file_to_file',
+           'embed_from_files_to_files',
+           'infer',
+           'predict',
+           'predict_from_file',
+           'predict_from_file_to_file',
+           'predict_from_files_to_files',
+           'preprocess',
+           'postprocess',
+           'resample']
+
+
+###############################################################################
+# Constants
+###############################################################################
+
+
+CENTS_PER_BIN = 20  # cents
+MAX_FMAX = 2006.  # hz
+PITCH_BINS = 360
+SAMPLE_RATE = 16000  # hz
+WINDOW_SIZE = 1024  # samples
+UNVOICED = np.nan
+
+
+###############################################################################
+# Crepe pitch prediction
+###############################################################################
+
+
+def predict(audio,
+            sample_rate,
+            hop_length=None,
+            fmin=50.,
+            fmax=MAX_FMAX,
+            model='full',
+            decoder=crepe.decode.viterbi,
+            return_harmonicity=False,
+            return_periodicity=False,
+            batch_size=None,
+            device='cpu',
+            pad=True):
+    """Performs pitch estimation
+
+    Arguments
+        audio (torch.tensor [shape=(1, time)])
+            The audio signal
+        sample_rate (int)
+            The sampling rate in Hz
+        hop_length (int)
+            The hop_length in samples
+        fmin (float)
+            The minimum allowable frequency in Hz
+        fmax (float)
+            The maximum allowable frequency in Hz
+        model (string)
+            The model capacity. One of 'full' or 'tiny'.
+        decoder (function)
+            The decoder to use. See decode.py for decoders.
+        return_harmonicity (bool) [DEPRECATED]
+            Whether to also return the network confidence
+        return_periodicity (bool)
+            Whether to also return the network confidence
+        batch_size (int)
+            The number of frames per batch
+        device (string)
+            The device used to run inference
+        pad (bool)
+            Whether to zero-pad the audio
+
+    Returns
+        pitch (torch.tensor [shape=(1, 1 + int(time // hop_length))])
+        (Optional) periodicity (torch.tensor
+                                [shape=(1, 1 + int(time // hop_length))])
+    """
+    # Deprecate return_harmonicity
+    if return_harmonicity:
+        message = (
+            'The crepe return_harmonicity argument is deprecated and '
+            'will be removed in a future release. Please use '
+            'return_periodicity. Rationale: if network confidence measured '
+            'harmonics, the value would be low for non-harmonic, periodic '
+            'sounds (e.g., sine waves). But this is not observed.')
+        warnings.warn(message, DeprecationWarning)
+        return_periodicity = return_harmonicity
+
+    results = []
+
+    # Postprocessing breaks gradients, so just don't compute them
+    with torch.no_grad():
+
+        # Preprocess audio
+        generator = preprocess(audio,
+                               sample_rate,
+                               hop_length,
+                               batch_size,
+                               device,
+                               pad)
+        for frames in generator:
+
+            # Infer independent probabilities for each pitch bin
+            probabilities = infer(frames, model)
+
+            # shape=(batch, 360, time / hop_length)
+            probabilities = probabilities.reshape(
+                audio.size(0), -1, PITCH_BINS).transpose(1, 2)
+
+            # Convert probabilities to F0 and periodicity
+            result = postprocess(probabilities,
+                                 fmin,
+                                 fmax,
+                                 decoder,
+                                 return_harmonicity,
+                                 return_periodicity)
+
+            # Place on same device as audio to allow very long inputs
+            if isinstance(result, tuple):
+                result = (result[0].to(audio.device),
+                          result[1].to(audio.device))
+            else:
+                 result = result.to(audio.device)
+
+            results.append(result)
+
+    # Split pitch and periodicity
+    if return_periodicity:
+        pitch, periodicity = zip(*results)
+        return torch.cat(pitch, 1), torch.cat(periodicity, 1)
+
+    # Concatenate
+    return torch.cat(results, 1)
+
+
